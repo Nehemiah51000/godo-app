@@ -6,6 +6,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config'
 import validationSchema from './common/utils/envs.config'
 import appConfig from './common/utils/app.config'
 import { MongooseModule } from '@nestjs/mongoose'
+import { IamModule } from './iam/iam.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { MongooseModule } from '@nestjs/mongoose'
       },
       inject: [ConfigService],
     }),
+    IamModule,
   ],
   controllers: [AppController],
   providers: [AppService],
