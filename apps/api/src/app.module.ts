@@ -2,10 +2,10 @@ import { env } from 'process'
 import { Module } from '@nestjs/common'
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
-import { ConfigModule } from '@nestjs/config'
+import { ConfigModule, ConfigService } from '@nestjs/config'
 import validationSchema from './common/utils/envs.config'
 import appConfig from './common/utils/app.config'
-// import { MongooseModule } from '@nestjs/mongoose'
+import { MongooseModule } from '@nestjs/mongoose'
 
 @Module({
   imports: [
@@ -27,33 +27,33 @@ import appConfig from './common/utils/app.config'
      * @NOTE: You don't have to use mongoose, you can use typeOrm with postgres
      *         - just install relevant npm packages
      */
-    // MongooseModule.forRootAsync({
-    //   imports: [ConfigModule],
-    //   useFactory: async (configSrv: ConfigService) => {
-    //     const isDev = !!configSrv.get<string>('NODE_ENV')
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configSrv: ConfigService) => {
+        const isDev = !!configSrv.get<string>('NODE_ENV')
 
-    //     const user = configSrv.get<string>('DB_USER')
-    //     const pass = configSrv.get<string>('DB_PASS')
-    //     const host = configSrv.get<string>('DB_HOST')
-    //     const port = configSrv.get<string>('DB_PORT')
-    //     const defaultDb = configSrv.get<string>('DB_DEFAULT')
-    //     let uri = isDev
-    //       ? configSrv.get<string>('DB_URI_DEV')
-    //       : configSrv.get<string>('DB_URI_PROD')
+        const user = configSrv.get<string>('DB_USER')
+        const pass = configSrv.get<string>('DB_PASS')
+        const host = configSrv.get<string>('DB_HOST')
+        const port = configSrv.get<string>('DB_PORT')
+        const defaultDb = configSrv.get<string>('DB_DEFAULT')
+        let uri = isDev
+          ? configSrv.get<string>('DB_URI_DEV')
+          : configSrv.get<string>('DB_URI_PROD')
 
-    //     uri = uri
-    //       .replace(/{{DB_USER}}/, user)
-    //       .replace(/{{DB_PASS}}/, pass)
-    //       .replace(/{{DB_HOST}}/, host)
-    //       .replace(/{{DB_PORT}}/, port)
-    //       .replace(/{{DB_DEFAULT}}/, defaultDb)
+        uri = uri
+          .replace(/{{DB_USER}}/, user)
+          .replace(/{{DB_PASS}}/, pass)
+          .replace(/{{DB_HOST}}/, host)
+          .replace(/{{DB_PORT}}/, port)
+          .replace(/{{DB_DEFAULT}}/, defaultDb)
 
-    //     return {
-    //       uri,
-    //     }
-    //   },
-    //   inject: [ConfigService],
-    // }),
+        return {
+          uri,
+        }
+      },
+      inject: [ConfigService],
+    }),
   ],
   controllers: [AppController],
   providers: [AppService],
