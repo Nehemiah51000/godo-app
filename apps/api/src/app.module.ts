@@ -6,7 +6,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config'
 import validationSchema from './common/utils/envs.config'
 import appConfig from './common/utils/app.config'
 import { MongooseModule } from '@nestjs/mongoose'
-import { IamModule } from './iam/iam.module';
+import { IamModule } from './iam/iam.module'
+import { APP_INTERCEPTOR } from '@nestjs/core'
+import { SerializeInterceptor } from './common/interceptors/serialize.interceptor'
 
 @Module({
   imports: [
@@ -58,6 +60,16 @@ import { IamModule } from './iam/iam.module';
     IamModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: SerializeInterceptor,
+    },
+
+    {
+      provide: AppService,
+      useClass: AppService,
+    },
+  ],
 })
 export class AppModule {}
