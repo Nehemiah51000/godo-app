@@ -2,22 +2,30 @@ import { Injectable } from '@nestjs/common'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
 import { IActiveUser } from '../interfaces/i-active-user'
+import { TUserDoc, User } from './schema/user.schema'
+import { InjectModel } from '@nestjs/mongoose'
+import { Model } from 'mongoose'
 
 @Injectable()
 export class UsersService {
-  create(createUserDto: CreateUserDto, activeUser: IActiveUser) {
+  constructor(
+    @InjectModel(User.name)
+    private readonly useModel: Model<TUserDoc>,
+  ) {}
+
+  async create(createUserDto: CreateUserDto, activeUser: IActiveUser) {
     return 'This action adds a new user'
   }
 
-  findAll(activeUser: IActiveUser) {
+  async findAll(activeUser: IActiveUser) {
     return `This action returns all users`
   }
 
-  findOne(userId: string, activeUser: IActiveUser) {
+  async findOne(userId: string, activeUser: IActiveUser) {
     return `This action returns a #${userId} user`
   }
 
-  update(
+  async update(
     userId: string,
     updateUserDto: UpdateUserDto,
     activeUser: IActiveUser,
@@ -25,7 +33,7 @@ export class UsersService {
     return `This action updates a #${userId} user`
   }
 
-  remove(userId: string, activeUser: IActiveUser) {
+  async remove(userId: string, activeUser: IActiveUser) {
     return `This action removes a #${userId} user`
   }
 }
