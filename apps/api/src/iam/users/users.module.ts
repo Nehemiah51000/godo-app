@@ -3,6 +3,8 @@ import { UsersService } from './users.service'
 import { UsersController } from './users.controller'
 import { MongooseModule } from '@nestjs/mongoose'
 import { User, UserSchema } from './schema/user.schema'
+import { HashService } from '../authentication/bcrypt/hash.service'
+import { BcryptService } from '../authentication/bcrypt/bcrypt.service'
 
 @Module({
   imports: [
@@ -13,14 +15,14 @@ import { User, UserSchema } from './schema/user.schema'
           const schema = UserSchema
 
           //Hooks
-          schema.pre('save', function (next) {
-            if (!this.isNew && this.isModified()) return next()
+          // schema.pre('save', function (next) {
+          //   if (!this.isNew && this.isModified()) return next()
 
-            this.password = this.passwordConfirm
-            this.passwordConfirm = undefined
+          //   this.password = this.passwordConfirm
+          //   this.passwordConfirm = undefined
 
-            return next()
-          })
+          //   return next()
+          // })
 
           return schema
         },
@@ -28,6 +30,12 @@ import { User, UserSchema } from './schema/user.schema'
     ]),
   ],
   controllers: [UsersController],
-  providers: [UsersService],
+  providers: [
+    {
+      provide: HashService,
+      useClass: BcryptService,
+    },
+    UsersService,
+  ],
 })
 export class UsersModule {}

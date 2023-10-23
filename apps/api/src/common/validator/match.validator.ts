@@ -4,8 +4,8 @@ import {
   ValidatorConstraintInterface,
   equals,
   registerDecorator,
+  ValidationOptions,
 } from 'class-validator'
-import { ValidationOptions, string } from 'joi'
 
 export const Match =
   <T>(property: keyof T, options?: ValidationOptions) =>
