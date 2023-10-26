@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 @Injectable()
-export abstract class HashService {
+export abstract class HashingService {
   /**
    * abstract method that will hash the passwords that come in
    * @param data a string to hash

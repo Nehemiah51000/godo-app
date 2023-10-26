@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { BcryptService } from './bcrypt.service'
 
-describe('BcryptServiceService', () => {
+describe('BcryptService', () => {
   let service: BcryptService
 
   beforeEach(async () => {
