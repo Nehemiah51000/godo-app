@@ -11,8 +11,10 @@ import { UpdateUserDto } from './dto/update-user.dto'
 import { IActiveUser } from '../interfaces/i-active-user'
 import { TUserDoc, User } from './schema/user.schema'
 import { InjectModel } from '@nestjs/mongoose'
-import { Model } from 'mongoose'
+import { FilterQuery, Model } from 'mongoose'
 import { HashService } from '../authentication/bcrypt/hash.service'
+import { ERoles } from '../enums/e-roles.enum'
+import { FactoryUtils } from 'src/common/services/factory-utils'
 
 @Injectable()
 export class UsersService {
@@ -20,9 +22,10 @@ export class UsersService {
 
   constructor(
     @InjectModel(User.name)
-    private readonly useModel: Model<TUserDoc>,
+    private readonly userModel: Model<TUserDoc>,
 
     private readonly hashingService: HashService,
+    private readonly factoryUtils: FactoryUtils,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
@@ -41,7 +44,7 @@ export class UsersService {
       )
 
       //create new user
-      const newUser = await this.useModel.create(userDetails)
+      const newUser = await this.userModel.create(userDetails)
 
       //@ToDo sign token--not applicable here
 
@@ -65,23 +68,122 @@ export class UsersService {
     }
   }
 
-  async findAll(activeUser: IActiveUser) {
-    return `This action returns all users`
+  async findAll(filters: FilterQuery<Partial<User>>, activeUser: IActiveUser) {
+    return this.userModel.find()
   }
 
-  async findOne(userId: string, activeUser: IActiveUser) {
-    return `This action returns a #${userId} user`
+  async findOne(
+    userId: string,
+    activeUser: IActiveUser,
+    filters?: FilterQuery<User>,
+  ) {
+    const isAdmin = activeUser.roles.includes('admin')
+    const foundUser = await this.userModel.findOne({
+      _id: userId,
+      ...(isAdmin ? {} : { username: activeUser.sub }),
+      ...filters,
+    })
+
+    if (!foundUser) {
+      this.logger.error(
+        `Failed to fetch user with ${userId} for user  ${
+          activeUser?.memberId || activeUser.sub
+        } with filters ${filters}`,
+      )
+
+      throw new BadRequestException('User was not found')
+    }
+    return foundUser
   }
 
   async update(
     userId: string,
     updateUserDto: UpdateUserDto,
     activeUser: IActiveUser,
+    filters?: FilterQuery<User>,
   ) {
-    return `This action updates a #${userId} user`
+    const isAdmin = activeUser.roles.includes('admin')
+
+    //handle updating
+    const updatedUser = await this.userModel.findOneAndUpdate(
+      {
+        _id: userId,
+        ...(isAdmin ? {} : { username: activeUser.sub }),
+        ...filters,
+      },
+      updateUserDto,
+      {
+        new: true,
+      },
+    )
+
+    //handle updating error
+    if (!updatedUser) {
+      this.logger.error(
+        `Failed to update user with ${userId}  for user  ${
+          activeUser?.memberId || activeUser.sub
+        } with filters ${filters}`,
+      )
+
+      throw new BadRequestException('User was not found')
+    }
+    this.logger.log(`User with id ${userId} was successfully updated.`)
+    return updatedUser
   }
 
-  async remove(userId: string, activeUser: IActiveUser) {
+  async remove(
+    userId: string,
+    activeUser: IActiveUser,
+    filters?: FilterQuery<User>,
+  ) {
+    const whoIs = this.factoryUtils.whoIs(activeUser)
+
+    // const userRole = activeUser.roles
+
+    //find the user about to be deleted
+    const userToBeDeleted = this.findOne(userId, activeUser)
+    if ((await userToBeDeleted).id === activeUser.sub) {
+      throw new BadRequestException('You cannot delete an account owner')
+    }
+
+    // //know user role
+
+    // //handles admin deleting a user
+    // const isAdmin = userRole.includes('admin')
+
+    // //account owner deleting a user
+    // const isAccountOwner =
+    //   activeUser.roles.includes('owner') || userRole === ERoles.ADMIN
+
+    // //handles account manager deleting a user
+    // const isAccountManager = userRole.includes('manager')
+
+    // //Team  member deleting a user
+    // const isTeamMember =
+    //   userRole.includes('member') || userRole === ERoles.ADMIN_ASSISTANT
+
+    // if (isTeamMember) {
+    //   throw new BadRequestException('User access denied')
+    // }
+    // const deletedUser = await this.userModel.findOneAndDelete({
+    //   _id: userId,
+    //   ...(isAdmin ? {} : { username: activeUser.sub }),
+    //   ...filters,
+    // })
+
+    //user must not delete themselves
+    if (userId === whoIs) {
+      throw new BadRequestException('You cannot delete yourself')
+    }
+
     return `This action removes a #${userId} user`
   }
+
+  /**
+   * ------------------------------------------------------------------------------------
+   * 
+   * ..........................Helper section
+
+   --------------------------------------------------------------------------------------
+   */
 }
