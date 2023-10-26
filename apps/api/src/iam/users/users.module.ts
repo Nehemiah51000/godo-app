@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose'
 import { User, UserSchema } from './schema/user.schema'
 import { HashService } from '../authentication/bcrypt/hash.service'
 import { BcryptService } from '../authentication/bcrypt/bcrypt.service'
+import { FactoryUtils } from 'src/common/services/factory-utils'
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { BcryptService } from '../authentication/bcrypt/bcrypt.service'
       useClass: BcryptService,
     },
     UsersService,
+    FactoryUtils,
   ],
 })
 export class UsersModule {}
