@@ -12,7 +12,7 @@ import { IActiveUser } from '../interfaces/i-active-user'
 import { TUserDoc, User } from './schema/user.schema'
 import { InjectModel } from '@nestjs/mongoose'
 import { FilterQuery, Model } from 'mongoose'
-import { HashService } from '../authentication/bcrypt/hash.service'
+import { HashingService } from '../authentication/bcrypt/hashing.service'
 import { ERoles } from '../enums/e-roles.enum'
 import { FactoryUtils } from 'src/common/services/factory-utils'
 
@@ -24,7 +24,7 @@ export class UsersService {
     @InjectModel(User.name)
     private readonly userModel: Model<TUserDoc>,
 
-    private readonly hashingService: HashService,
+    private readonly hashingService: HashingService,
     private readonly factoryUtils: FactoryUtils,
   ) {}
 
@@ -84,15 +84,7 @@ export class UsersService {
       ...filters,
     })
 
-    if (!foundUser) {
-      this.logger.error(
-        `Failed to fetch user with ${userId} for user  ${
-          activeUser?.memberId || activeUser.sub
-        } with filters ${filters}`,
-      )
-
-      throw new BadRequestException('User was not found')
-    }
+    this.throwIfUserNotFound(foundUser, userId, activeUser, filters)
     return foundUser
   }
 
@@ -186,4 +178,30 @@ export class UsersService {
 
    --------------------------------------------------------------------------------------
    */
+
+  private throwIfUserNotFound(
+    foundUser: import('mongoose').Document<
+      unknown,
+      {},
+      import('mongoose').Document<unknown, {}, User> &
+        User & { _id: import('mongoose').Types.ObjectId }
+    > &
+      import('mongoose').Document<unknown, {}, User> &
+      User & { _id: import('mongoose').Types.ObjectId } & Required<{
+        _id: import('mongoose').Types.ObjectId //   ...filters,
+      }>,
+    userId: string,
+    activeUser: IActiveUser,
+    filters: FilterQuery<User>,
+  ) {
+    if (!foundUser) {
+      this.logger.error(
+        `Failed to fetch user with ${userId} for user  ${
+          activeUser?.memberId || activeUser.sub
+        } with filters ${filters}`,
+      )
+
+      throw new BadRequestException('User was not found')
+    }
+  }
 }

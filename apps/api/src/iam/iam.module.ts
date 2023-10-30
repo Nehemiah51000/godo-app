@@ -1,15 +1,17 @@
 import { Module } from '@nestjs/common'
 import { UsersModule } from './users/users.module'
-import { HashService } from './authentication/bcrypt/hash.service'
+import { HashingService } from './authentication/bcrypt/hashing.service'
 import { BcryptService } from './authentication/bcrypt/bcrypt.service'
 import { AuthController } from './authentication/auth.controller'
 import { FactoryUtils } from 'src/common/services/factory-utils'
+import { RolesModule } from './authorization/roles/roles.module'
+import { AccessesModule } from './authorization/accesses/accesses.module';
 
 @Module({
-  imports: [UsersModule],
+  imports: [UsersModule, RolesModule, AccessesModule],
   providers: [
     {
-      provide: HashService,
+      provide: HashingService,
       useClass: BcryptService,
     },
     FactoryUtils,
