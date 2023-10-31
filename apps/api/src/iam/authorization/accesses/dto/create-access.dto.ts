@@ -8,4 +8,5 @@ export class CreateAccessDto {
 
   @IsMongoId()
   roleId: Role
+  static roleId: any
 }
