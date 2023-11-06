@@ -16,7 +16,10 @@ import { FilterQuery } from 'mongoose'
 import { IActiveUser } from 'src/iam/interfaces/i-active-user'
 import { ActiveUser } from 'src/iam/authentication/decorators/active-user.decorator'
 import { PerseMongoIdPipe } from 'src/common/pipes/perse-mongo-id.pipe'
+import { Serialize } from 'src/common/decorators/serialize.decorator'
+import { AccessResponseDto } from './dto/access-response.dto'
 
+@Serialize(AccessResponseDto)
 @Controller({
   path: 'accesses',
   version: '1',
