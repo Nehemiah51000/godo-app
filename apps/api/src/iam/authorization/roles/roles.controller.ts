@@ -18,7 +18,10 @@ import { Role } from './schema/role.schema'
 import { PerseRoleTypePipe } from './pipes/perse-role-type.pipe'
 import { ERoleTypes } from './enums/e-role-types'
 import { ToggleRoleDto } from './dto/toggle-role.dto'
+import { Serialize } from 'src/common/decorators/serialize.decorator'
+import { RolesResponseDto } from './dto/roles-response.dto'
 
+@Serialize(RolesResponseDto)
 @Controller({
   path: 'roles',
   version: '1',
