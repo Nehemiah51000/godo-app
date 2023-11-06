@@ -24,5 +24,6 @@ import { FactoryUtils } from 'src/common/services/factory-utils'
   ],
   controllers: [AccessesController],
   providers: [AccessesService, FactoryUtils],
+  exports: [AccessesService],
 })
 export class AccessesModule {}
