@@ -11,7 +11,6 @@ import { HydratedDocument, SchemaTypes } from 'mongoose'
 export class Role {
   @Prop({
     index: 'text',
-    unique: true,
   })
   name: ERoles
 
