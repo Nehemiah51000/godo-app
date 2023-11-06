@@ -30,9 +30,9 @@ export class CreateUserDto {
 
   @IsString()
   @IsOptional()
-  bio: string
+  bio?: string
 
   @IsString()
   @IsOptional()
-  profileImg: string
+  profileImg?: string
 }
