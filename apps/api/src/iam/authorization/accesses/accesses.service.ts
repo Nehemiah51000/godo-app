@@ -11,15 +11,17 @@ import {
 import { CreateAccessDto } from './dto/create-access.dto'
 import { UpdateAccessDto } from './dto/update-access.dto'
 import { IActiveUser } from 'src/iam/interfaces/i-active-user'
-import { FilterQuery, Model } from 'mongoose'
+import { FilterQuery, Model, PopulateOptions } from 'mongoose'
 import { InjectModel } from '@nestjs/mongoose'
 import { RolesService } from '../roles/roles.service'
 import { UsersService } from 'src/iam/users/users.service'
 import { FactoryUtils } from 'src/common/services/factory-utils'
 import { Access } from './schema/access.schema'
-import { EPremiumRoles, ERoles } from 'src/iam/enums/e-roles.enum'
+import { EPremiumSubscribers, ERoles } from 'src/iam/enums/e-roles.enum'
 import { CreateUserDto } from 'src/iam/users/dto/create-user.dto'
 import { ERoleTypes } from '../roles/enums/e-role-types'
+import { TeamsResponseDto } from 'src/iam/users/dto/teams/teams-response.dto'
+import { TAccessResponseDoc } from './types/t-access-response-doc.type'
 
 @Injectable()
 export class AccessesService {
@@ -51,7 +53,7 @@ export class AccessesService {
       createAccessDto['accountOwner'] = activeUser.sub
       createAccessDto['baseRole'] = activeUser.baseRole
 
-      const createdAccess = await this.accessesModel.create(CreateUserDto)
+      const createdAccess = await this.createAccessHelper(createAccessDto)
       return createdAccess
     } catch (error) {
       //logger
@@ -96,15 +98,16 @@ export class AccessesService {
     activeUser: IActiveUser,
     isEnabled?: boolean,
   ) {
-    const foundRole = await this.accessesModel.findOne({
-      _id: accessId,
-      accoutOwner: activeUser.sub,
-      ...(isEnabled ? { isEnable: true } : {}),
-    })
-    if (!foundRole) {
-      throw new NotFoundException('Access not found')
-    }
-    return foundRole
+    const foundAccess = await this.findOneHelper(
+      false,
+      {
+        accoutOwner: activeUser.sub,
+        ...(isEnabled ? { isEnable: true } : {}),
+      },
+      accessId,
+    )
+
+    return foundAccess
   }
 
   async update(
@@ -155,9 +158,50 @@ export class AccessesService {
   }
   /**
    * --------------------------------------------------------
-   * -----------------helpers
+   * -----------------helper method
    * ----------------------------------------------------------------
    */
+
+  async findOneHelper(
+    isCustomSearchBy: boolean,
+    filters: FilterQuery<Access> = {},
+    searchBy?: ERoles | string,
+  ): Promise<TAccessResponseDoc> {
+    let foundAccess = await this.accessesModel.findOne({
+      ...(!isCustomSearchBy ? { _id: searchBy } : {}),
+      ...filters,
+    })
+
+    if (!foundAccess) {
+      throw new NotFoundException('access not found')
+    }
+
+    const populateOptions = this.populateHelper()
+
+    foundAccess =
+      await foundAccess.populate<TAccessResponseDoc>(populateOptions)
+
+    return foundAccess as TAccessResponseDoc
+  }
+
+  async createAccessHelper(createAccessDto: CreateAccessDto) {
+    return this.accessesModel.create(createAccessDto)
+  }
+
+  private populateHelper(): PopulateOptions[] {
+    return [
+      {
+        path: 'accountOwner',
+      },
+      {
+        path: 'assignedTo',
+      },
+      {
+        path: 'roleId',
+        select: 'id name',
+      },
+    ]
+  }
 
   /**
    * Ensures that a user trying to create a role has the right to create it
@@ -176,7 +220,7 @@ export class AccessesService {
 
     //find type of the current user belongs
     const type =
-      role === ERoles.ADMIN || baseRole === EPremiumRoles.ADMIN
+      role === ERoles.ADMIN || baseRole === EPremiumSubscribers.ADMIN
         ? ERoleTypes.ADMIN
         : ERoleTypes.REGULAR
 
@@ -191,13 +235,16 @@ export class AccessesService {
     if (managerId) {
       //handling premium, guest and teams manager
 
-      if (baseRole !== EPremiumRoles.ADMIN && roleName !== ERoles.MEMBER) {
+      if (
+        baseRole !== EPremiumSubscribers.ADMIN &&
+        roleName !== ERoles.MEMBER
+      ) {
         throw new ForbiddenException(errorMessage)
       }
 
       //handles admin manager
       if (
-        baseRole === EPremiumRoles.ADMIN &&
+        baseRole === EPremiumSubscribers.ADMIN &&
         (roleName === ERoles.ADMIN ||
           roleName === ERoles.MANAGER ||
           roleName === ERoles.MEMBER ||
@@ -209,10 +256,11 @@ export class AccessesService {
 
     //handles account owner
 
-    if (role !== ERoles.ADMIN) {
-      if (roleName !== ERoles.MANAGER && roleName !== ERoles.MEMBER) {
-        throw new ForbiddenException(errorMessage)
-      }
+    if (
+      (role !== ERoles.ADMIN && roleName !== ERoles.MANAGER) ||
+      (role !== ERoles.ADMIN && roleName !== ERoles.MEMBER)
+    ) {
+      throw new ForbiddenException(errorMessage)
     }
   }
 }
