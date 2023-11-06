@@ -4,7 +4,7 @@ import { IsMongoId } from 'class-validator'
 
 export class CreateAccessDto {
   @IsMongoId()
-  assignedFor: User
+  assignedTo: User
 
   @IsMongoId()
   roleId: Role
