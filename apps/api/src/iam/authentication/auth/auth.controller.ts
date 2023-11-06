@@ -24,7 +24,7 @@ export class AuthController {
     return this.authService.signUp(signUpDto)
   }
 
-  @Post('signin/:dynamic/:more')
+  @Post('signin')
   signIn(@Body() signInDto: SignInDto) {
     return this.authService.signIn(signInDto)
   }
