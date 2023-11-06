@@ -9,12 +9,13 @@ import {
 import { CreateRoleDto } from './dto/create-role.dto'
 import { UpdateRoleDto } from './dto/update-role.dto'
 import { IActiveUser } from 'src/iam/interfaces/i-active-user'
-import { Role } from './schema/role.schema'
+import { Role, TRolesDoc } from './schema/role.schema'
 import { FilterQuery, Model } from 'mongoose'
 import { InjectModel } from '@nestjs/mongoose'
 import { FactoryUtils } from 'src/common/services/factory-utils'
 import { ERoleTypes } from './enums/e-role-types'
 import { ToggleRoleDto } from './dto/toggle-role.dto'
+import { ERoles } from 'src/iam/enums/e-roles.enum'
 
 @Injectable()
 export class RolesService {
@@ -44,7 +45,7 @@ export class RolesService {
       // hash password
 
       // create new role
-      const newRole = await this.roleModel.create({
+      let newRole = await this.roleModel.create({
         ...roleDetails,
         type,
       })
@@ -70,7 +71,7 @@ export class RolesService {
     }
   }
 
-  findAll(
+  async findAll(
     filters: FilterQuery<Role>,
     activeUser: IActiveUser,
     type: ERoleTypes,
@@ -78,10 +79,19 @@ export class RolesService {
     const whoIs = this.factoryUtils.whoIs(activeUser)
     this.logger.log(`User with id: ${whoIs} is accessing all roles`)
 
-    return this.roleModel.find({
-      ...filters,
-      $and: [{ type }],
-    })
+    const roles = await this.roleModel
+      .find({
+        ...filters,
+        $and: [{ type }],
+      })
+      .populate<{ assignedFor: TRolesDoc }>({
+        path: 'assignedFor',
+        select: 'id name',
+      })
+
+    return {
+      data: roles,
+    }
   }
 
   async findOne(
@@ -95,16 +105,7 @@ export class RolesService {
       `User with id: ${whoIs} is accessing role with id: ${roleId}`,
     )
 
-    const foundRole = await this.roleModel.findOne({
-      _id: roleId,
-      $and: [{ type }],
-      ...filters,
-    })
-
-    // validation
-    this.throwIfRoleNotFound(foundRole, roleId, 'finding')
-
-    return foundRole
+    return await this.findOneHelper(roleId, filters, type)
   }
 
   async update(
@@ -134,6 +135,8 @@ export class RolesService {
 
     // handle update errors
     this.throwIfRoleNotFound(updatedRole, roleId, 'updating')
+
+    await this.populateHelper(updatedRole)
 
     // response
     this.logger.log(`Role with id ${roleId} was successfully updated`)
@@ -180,6 +183,37 @@ export class RolesService {
    *
    * --------------------------------------------------------------
    */
+
+  async findOneHelper(
+    searchBy?: ERoles | string,
+    filters: FilterQuery<Role> = {},
+    type?: ERoleTypes,
+  ) {
+    const isERole = !!ERoles[searchBy.toUpperCase()]
+
+    const foundRole = await this.roleModel.findOne({
+      ...(isERole ? { name: searchBy } : { _id: searchBy, $and: [{ type }] }),
+      ...filters,
+    })
+
+    //validation
+    this.throwIfRoleNotFound(foundRole, searchBy, 'finding')
+
+    //populate fields
+    await this.populateHelper(foundRole)
+
+    return foundRole
+  }
+
+  private async populateHelper(roleDoc: TRolesDoc) {
+    roleDoc = await roleDoc.populate<{ assignedFor: TRolesDoc }>({
+      path: 'assignedFor',
+      select: 'id name',
+    })
+
+    return roleDoc
+  }
+
   private throwIfRoleNotFound(role: Role, roleId: string, action: string) {
     if (!role) {
       this.logger.error(`${action} role with ${roleId} failed`)
