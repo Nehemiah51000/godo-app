@@ -10,6 +10,9 @@ import {
 import { ResponseWrapperInterceptor } from './common/interceptors/response-wrapper.interceptor'
 
 export async function setup(app: INestApplication) {
+  //prefix api
+  app.setGlobalPrefix('api')
+
   /// Versioning
   app.enableVersioning({
     type: VersioningType.URI,

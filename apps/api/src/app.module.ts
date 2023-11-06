@@ -66,10 +66,7 @@ import { SerializeInterceptor } from './common/interceptors/serialize.intercepto
       useClass: SerializeInterceptor,
     },
 
-    {
-      provide: AppService,
-      useClass: AppService,
-    },
+    AppService,
   ],
 })
 export class AppModule {}

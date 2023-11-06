@@ -5,6 +5,7 @@ import {
   BadRequestException,
   ConflictException,
   InternalServerErrorException,
+  ForbiddenException,
 } from '@nestjs/common'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
@@ -13,12 +14,12 @@ import { TUserDoc, User } from './schema/user.schema'
 import { InjectModel } from '@nestjs/mongoose'
 import { FilterQuery, Model } from 'mongoose'
 import { HashingService } from '../authentication/bcrypt/hashing.service'
-import { ERoles } from '../enums/e-roles.enum'
 import { FactoryUtils } from 'src/common/services/factory-utils'
+import { EPremiumSubscribers } from '../enums/e-roles.enum'
 
 @Injectable()
 export class UsersService {
-  private readonly logger: LoggerService = new Logger()
+  private readonly logger: LoggerService = new Logger(UsersService.name)
 
   constructor(
     @InjectModel(User.name)
@@ -77,24 +78,30 @@ export class UsersService {
     activeUser: IActiveUser,
     filters?: FilterQuery<User>,
   ) {
-    const isAdmin = activeUser.roles.includes('admin')
-    const foundUser = await this.userModel.findOne({
-      _id: userId,
-      ...(isAdmin ? {} : { username: activeUser.sub }),
-      ...filters,
-    })
+    const isAdmin = activeUser.role.includes('admin')
 
-    this.throwIfUserNotFound(foundUser, userId, activeUser, filters)
+    const foundUser = await this.findOneHelper(
+      'id',
+      {
+        ...filters,
+        ...(isAdmin ? {} : { username: activeUser.sub }),
+      },
+      userId,
+    )
+
     return foundUser
   }
 
   async update(
     userId: string,
-    updateUserDto: UpdateUserDto,
-    activeUser: IActiveUser,
+    updateUserDto: Partial<UpdateUserDto | { totalTeamMembers: number }>,
+    activeUser?: IActiveUser,
     filters?: FilterQuery<User>,
   ) {
-    const isAdmin = activeUser.roles.includes('admin')
+    const isAdmin = activeUser.role.includes('admin')
+
+    //Prevents users from updating other fields
+    this.throwIfUpdatingOtherUsers(activeUser, userId)
 
     //handle updating
     const updatedUser = await this.userModel.findOneAndUpdate(
@@ -138,21 +145,21 @@ export class UsersService {
       throw new BadRequestException('You cannot delete an account owner')
     }
 
-    // //know user role
+    // //know user roles
 
     // //handles admin deleting a user
     // const isAdmin = userRole.includes('admin')
 
     // //account owner deleting a user
     // const isAccountOwner =
-    //   activeUser.roles.includes('owner') || userRole === ERoles.ADMIN
+    //   activeUser.roles.includes('owner') || userRole === ERole.ADMIN
 
     // //handles account manager deleting a user
     // const isAccountManager = userRole.includes('manager')
 
     // //Team  member deleting a user
     // const isTeamMember =
-    //   userRole.includes('member') || userRole === ERoles.ADMIN_ASSISTANT
+    //   userRole.includes('member') || userRole === ERole.ADMIN_ASSISTANT
 
     // if (isTeamMember) {
     //   throw new BadRequestException('User access denied')
@@ -168,7 +175,20 @@ export class UsersService {
       throw new BadRequestException('You cannot delete yourself')
     }
 
-    return `This action removes a #${userId} user`
+    //try and delete
+    const deletedUser = await this.userModel.findOneAndDelete({
+      _id: userId,
+    })
+
+    this.throwIfUserNotFound(deletedUser, userId, 'deleting')
+
+    //message
+    const message = `User with id ${userId} was succesfully deleted`
+    this.logger.log(message)
+
+    return {
+      message,
+    }
   }
 
   /**
@@ -179,29 +199,47 @@ export class UsersService {
    --------------------------------------------------------------------------------------
    */
 
-  private throwIfUserNotFound(
-    foundUser: import('mongoose').Document<
-      unknown,
-      {},
-      import('mongoose').Document<unknown, {}, User> &
-        User & { _id: import('mongoose').Types.ObjectId }
-    > &
-      import('mongoose').Document<unknown, {}, User> &
-      User & { _id: import('mongoose').Types.ObjectId } & Required<{
-        _id: import('mongoose').Types.ObjectId //   ...filters,
-      }>,
-    userId: string,
-    activeUser: IActiveUser,
-    filters: FilterQuery<User>,
+  async findOneHelper(
+    type: 'custom' | 'id' = 'id',
+    filters: FilterQuery<User> = {},
+    searchBy?: string,
   ) {
-    if (!foundUser) {
-      this.logger.error(
-        `Failed to fetch user with ${userId} for user  ${
-          activeUser?.memberId || activeUser.sub
-        } with filters ${filters}`,
-      )
+    const foundUser = await this.userModel.findOne({
+      ...(type === 'custom' ? filters : { _id: searchBy }),
+      ...filters,
+    })
 
-      throw new BadRequestException('User was not found')
+    // validation
+    this.throwIfUserNotFound(foundUser, searchBy, 'finding')
+
+    return foundUser
+  }
+
+  async removeHelper(userId: string) {
+    return await this.userModel.deleteOne({ _id: userId })
+  }
+  private throwIfUserNotFound(user: User, userId: string, action: string) {
+    if (!user) {
+      this.logger.error(`${action} user with ${userId} failed`)
+
+      throw new BadRequestException(
+        `Oops! looks like  ${action} user with id ${userId} failed`,
+      )
+    }
+  }
+
+  /**
+   * Prevents user from updating other users fields
+   * @param activeUser
+   * @param userId
+   */
+  private throwIfUpdatingOtherUsers(activeUser: IActiveUser, userId: string) {
+    if (
+      activeUser &&
+      activeUser.sub !== userId &&
+      activeUser.baseRole !== EPremiumSubscribers.ADMIN
+    ) {
+      throw new ForbiddenException('Update not allowed')
     }
   }
 }
