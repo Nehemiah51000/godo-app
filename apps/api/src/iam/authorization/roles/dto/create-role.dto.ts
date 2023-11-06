@@ -25,5 +25,5 @@ export class CreateRoleDto {
 
   @IsMongoId()
   @IsOptional()
-  assignedFor: string //The parent is the only one who can access this feature
+  assignedFor?: string //The parent is the only one who can access this feature
 }
