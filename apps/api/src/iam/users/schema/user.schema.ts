@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 import mongoose from 'mongoose'
-import { type } from 'os'
 
 @Schema({
   toJSON: { virtuals: true },
@@ -65,6 +64,11 @@ export class User {
 
   @Prop()
   passwordResetExpiresAt?: Date
+
+  @Prop({
+    default: '0',
+  })
+  totalTeamMembers?: number
 }
 export const UserSchema = SchemaFactory.createForClass(User)
 
