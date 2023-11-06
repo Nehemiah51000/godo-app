@@ -8,9 +8,6 @@ export class SlimRolesResponseDto {
 
   @Expose()
   name: string
-
-  @Expose()
-  isEnabled: boolean
 }
 
 export class RolesResponseDto {
