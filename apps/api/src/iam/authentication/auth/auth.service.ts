@@ -126,6 +126,7 @@ export class AuthService {
 
       // sign access token
       const accessToken = await this.signedToken(foundUser.id)
+      console.log(accessToken)
 
       return {
         accessToken,
@@ -211,6 +212,8 @@ export class AuthService {
       issuer: this.jwtConfig.issuer,
       expiresIn: this.jwtConfig.accessTokenTTL,
     })
+
+    return accessToken
   }
 
   private async asignedDefaultRole(newUser: TUserDoc) {
