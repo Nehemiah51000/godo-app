@@ -83,3 +83,19 @@ export type TUserDoc = mongoose.HydratedDocument<User>
   passwordResetToken: Date
   passwordResetExpiresAt: Date
  */
+
+//Populate virtual fields
+//Accesses
+UserSchema.virtual('accesses', {
+  ref: 'Access',
+  localField: '_id',
+  foreignField: 'accountOwner',
+})
+
+//populate virtual fields
+//members
+UserSchema.virtual('team', {
+  ref: 'Team',
+  localField: '_id',
+  foreignField: 'accountOwner',
+})

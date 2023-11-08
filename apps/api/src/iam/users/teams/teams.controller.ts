@@ -21,8 +21,21 @@ import { Serialize } from 'src/common/decorators/serialize.decorator'
 import { TeamsResponseDto } from '../dto/teams/teams-response.dto'
 import { DisableMemberStatusDto } from '../dto/teams/disable-member-status.dto'
 import { MemberResignationDto } from '../dto/teams/member-resignation.dto'
+import {
+  eAllMembersMap,
+  eManagerMembersMap,
+  ePremiumSubscribers,
+} from 'src/iam/enums/e-roles.enum'
+import { RestrictToRole } from 'src/iam/authorization/decorators/restrict-to-role.decorator'
+import { AccessAuth } from 'src/iam/authorization/decorators/access-auth.decorator'
+import { EAccessAuthTypes } from 'src/iam/authorization/enums/e-access-auth-types.enum'
+import { EAuthTypes } from 'src/iam/authentication/enums/e-auth-types.enum'
+import { Auth } from 'src/iam/authentication/decorators/auth.decorator'
 
 @Serialize(TeamsResponseDto)
+@RestrictToRole(...ePremiumSubscribers, ...eManagerMembersMap)
+@AccessAuth(EAccessAuthTypes.ROLE)
+@Auth(EAuthTypes.BEARER)
 @Controller({
   path: 'teams',
   version: '1',
@@ -38,6 +51,7 @@ export class TeamsController {
     return this.teamsService.create(createTeamDto, activeUser)
   }
 
+  @RestrictToRole(...ePremiumSubscribers, ...eAllMembersMap)
   @Get()
   findAll(
     @ActiveUser() activeUser: IActiveUser,
@@ -46,7 +60,9 @@ export class TeamsController {
     return this.teamsService.findAll(activeUser, filters)
   }
 
-  @Get(':teamId') findOne(
+  @RestrictToRole(...ePremiumSubscribers, ...eAllMembersMap)
+  @Get(':teamId')
+  findOne(
     @Param('teamId', PerseMongoIdPipe) teamId: string,
     @ActiveUser() activeUser: IActiveUser,
   ) {
@@ -72,6 +88,7 @@ export class TeamsController {
     return this.teamsService.disable(teamId, disable, activeUser, memberId)
   }
 
+  @RestrictToRole(...eAllMembersMap)
   @Patch(':teamId/resign/:memberId')
   resign(
     @Param('teamId', PerseMongoIdPipe) teamId: string,

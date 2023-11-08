@@ -7,8 +7,16 @@ import validationSchema from './common/utils/envs.config'
 import appConfig from './common/utils/app.config'
 import { MongooseModule } from '@nestjs/mongoose'
 import { IamModule } from './iam/iam.module'
-import { APP_INTERCEPTOR } from '@nestjs/core'
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { SerializeInterceptor } from './common/interceptors/serialize.interceptor'
+import { AccessesModule } from './iam/authorization/accesses/accesses.module'
+import { jwtConfigs } from './iam/authentication/configs/jwt.configs'
+import { JwtModule } from '@nestjs/jwt'
+import { AuthGuard } from './iam/authentication/guards/auth.guard'
+import { AccessTokenGuard } from './iam/authentication/guards/access-token.guard'
+import { AccessGuard } from './iam/authorization/guards/access.guard'
+import { RoleAccessGuard } from './iam/authorization/guards/role-access.guard'
+import { FeaturesModule } from './features/features.module';
 
 @Module({
   imports: [
@@ -58,9 +66,22 @@ import { SerializeInterceptor } from './common/interceptors/serialize.intercepto
       inject: [ConfigService],
     }),
     IamModule,
+    AccessesModule,
+    JwtModule.registerAsync(jwtConfigs.asProvider()),
+    FeaturesModule,
   ],
   controllers: [AppController],
   providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
+    AccessTokenGuard,
+    {
+      provide: APP_GUARD,
+      useClass: AccessGuard,
+    },
+    RoleAccessGuard,
     {
       provide: APP_INTERCEPTOR,
       useClass: SerializeInterceptor,

@@ -26,6 +26,7 @@ export class UsersService {
     private readonly userModel: Model<TUserDoc>,
 
     private readonly hashingService: HashingService,
+
     private readonly factoryUtils: FactoryUtils,
   ) {}
 
@@ -70,7 +71,9 @@ export class UsersService {
   }
 
   async findAll(filters: FilterQuery<Partial<User>>, activeUser: IActiveUser) {
-    return this.userModel.find()
+    return this.userModel.find({
+      ...filters,
+    })
   }
 
   async findOne(
@@ -78,13 +81,12 @@ export class UsersService {
     activeUser: IActiveUser,
     filters?: FilterQuery<User>,
   ) {
-    const isAdmin = activeUser.role.includes('admin')
+    this.throwIfAccessingOtherUsers(activeUser, userId, 'finding')
 
     const foundUser = await this.findOneHelper(
       'id',
       {
         ...filters,
-        ...(isAdmin ? {} : { username: activeUser.sub }),
       },
       userId,
     )
@@ -98,16 +100,13 @@ export class UsersService {
     activeUser?: IActiveUser,
     filters?: FilterQuery<User>,
   ) {
-    const isAdmin = activeUser.role.includes('admin')
+    // prevent user from updating other users fields
+    this.throwIfAccessingOtherUsers(activeUser, userId, 'Updating')
 
-    //Prevents users from updating other fields
-    this.throwIfUpdatingOtherUsers(activeUser, userId)
-
-    //handle updating
+    // handle updating
     const updatedUser = await this.userModel.findOneAndUpdate(
       {
         _id: userId,
-        ...(isAdmin ? {} : { username: activeUser.sub }),
         ...filters,
       },
       updateUserDto,
@@ -116,17 +115,15 @@ export class UsersService {
       },
     )
 
-    //handle updating error
-    if (!updatedUser) {
-      this.logger.error(
-        `Failed to update user with ${userId}  for user  ${
-          activeUser?.memberId || activeUser.sub
-        } with filters ${filters}`,
-      )
+    // handle update errors
+    this.throwIfUserNotFound(updatedUser, userId, 'updating')
 
-      throw new BadRequestException('User was not found')
-    }
-    this.logger.log(`User with id ${userId} was successfully updated.`)
+    //handles when the user is already being updated
+    this.throwIfUpdatingOtherUsers(activeUser, userId)
+
+    // response
+    this.logger.log(`User with id ${userId} was successfully updated`)
+
     return updatedUser
   }
 
@@ -171,9 +168,7 @@ export class UsersService {
     // })
 
     //user must not delete themselves
-    if (userId === whoIs) {
-      throw new BadRequestException('You cannot delete yourself')
-    }
+    this.throwIfSelfDeletion(userId, whoIs)
 
     //try and delete
     const deletedUser = await this.userModel.findOneAndDelete({
@@ -218,6 +213,32 @@ export class UsersService {
   async removeHelper(userId: string) {
     return await this.userModel.deleteOne({ _id: userId })
   }
+
+  /**
+   * prevent user from updating other users fields
+   * @param activeUser
+   * @param userId
+   */
+  private throwIfAccessingOtherUsers(
+    activeUser: IActiveUser,
+    userId: string,
+    action: string,
+  ) {
+    const isAdmin = !!EPremiumSubscribers[activeUser.baseRole.toUpperCase()]
+
+    if (
+      (activeUser.sub !== userId && !isAdmin) ||
+      (userId !== activeUser.baseRole && !isAdmin)
+    ) {
+      throw new ForbiddenException(`${action} not allow`)
+    }
+  }
+  private throwIfSelfDeletion(userId: string, whoIs: string | IActiveUser) {
+    if (userId === whoIs) {
+      throw new BadRequestException('You cannot delete yourself')
+    }
+  }
+
   private throwIfUserNotFound(user: User, userId: string, action: string) {
     if (!user) {
       this.logger.error(`${action} user with ${userId} failed`)

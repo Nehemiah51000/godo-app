@@ -20,8 +20,24 @@ import { ERoleTypes } from './enums/e-role-types'
 import { ToggleRoleDto } from './dto/toggle-role.dto'
 import { Serialize } from 'src/common/decorators/serialize.decorator'
 import { RolesResponseDto } from './dto/roles-response.dto'
+import { RestrictToRole } from '../decorators/restrict-to-role.decorator'
+import {
+  EMembers,
+  EPremiumSubscribers,
+  eAdminMembersMap,
+} from 'src/iam/enums/e-roles.enum'
+import { AccessAuth } from '../decorators/access-auth.decorator'
+import { EAccessAuthTypes } from '../enums/e-access-auth-types.enum'
+import { Auth } from 'src/iam/authentication/decorators/auth.decorator'
+import { EAuthTypes } from 'src/iam/authentication/enums/e-auth-types.enum'
 
 @Serialize(RolesResponseDto)
+@RestrictToRole(EPremiumSubscribers.ADMIN, [
+  EMembers.ADMIN_MANAGER,
+  EPremiumSubscribers.ADMIN,
+])
+@AccessAuth(EAccessAuthTypes.ROLE)
+@Auth(EAuthTypes.BEARER)
 @Controller({
   path: 'roles',
   version: '1',
@@ -38,6 +54,7 @@ export class RolesController {
     return this.rolesService.create(createRoleDto, activeUser, type)
   }
 
+  @RestrictToRole(EPremiumSubscribers.ADMIN, ...eAdminMembersMap)
   @Get(':type')
   findAll(
     @Param('type', PerseRoleTypePipe) type: ERoleTypes,
@@ -47,6 +64,7 @@ export class RolesController {
     return this.rolesService.findAll(filters, activeUser, type)
   }
 
+  @RestrictToRole(EPremiumSubscribers.ADMIN, ...eAdminMembersMap)
   @Get(':type/:roleId')
   findOne(
     @Param('type', PerseRoleTypePipe) type: ERoleTypes,
