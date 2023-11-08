@@ -86,10 +86,11 @@ export class AccessesService {
   }
 
   async findAll(activeUser: IActiveUser, filters?: FilterQuery<Access>) {
+    const isAdmin = !!EPremiumSubscribers[activeUser.baseRole.toUpperCase()]
     //@Todo: implement pagination
     return this.accessesModel.find({
       ...filters,
-      accountOwner: activeUser.sub,
+      ...(isAdmin ? {} : { accoutOwner: activeUser.sub }),
     })
   }
 
@@ -98,11 +99,15 @@ export class AccessesService {
     activeUser: IActiveUser,
     isEnabled?: boolean,
   ) {
+    const assignedTo = activeUser?.memberId
+    const isAdmin = EPremiumSubscribers[activeUser.baseRole.toUpperCase()]
+
     const foundAccess = await this.findOneHelper(
       false,
       {
         accoutOwner: activeUser.sub,
         ...(isEnabled ? { isEnable: true } : {}),
+        ...(assignedTo && !isAdmin ? { assignedTo } : {}),
       },
       accessId,
     )
