@@ -9,8 +9,6 @@ import { CreateFreeTodoDto } from './dto/create-free-todo.dto'
 export class TodosService {
   private readonly logger: LoggerService = new Logger(TodosService.name)
 
-  private readonly MAX_STANDARD_SUBSCRIBER_PROJECTS = 24
-
   createFree(createTodoDto: CreateFreeTodoDto) {
     return 'This action adds a new todo'
   }
