@@ -16,7 +16,7 @@ import { AuthGuard } from './iam/authentication/guards/auth.guard'
 import { AccessTokenGuard } from './iam/authentication/guards/access-token.guard'
 import { AccessGuard } from './iam/authorization/guards/access.guard'
 import { RoleAccessGuard } from './iam/authorization/guards/role-access.guard'
-import { FeaturesModule } from './features/features.module';
+import { FeaturesModule } from './features/features.module'
 
 @Module({
   imports: [
