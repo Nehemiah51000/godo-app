@@ -1,10 +1,10 @@
 import { EPremiumSubscribers, ERoles } from '../enums/e-roles.enum'
 
 export interface IActiveUser {
-  //current user logged into the app
+  // Current logged in user
   sub: string
 
-  //gets the role of the user(regular, admin, standard, premium)
+  // Get user role - permissions {regular, standard, premium, admin}
   role: ERoles
 
   email: string
@@ -12,15 +12,24 @@ export interface IActiveUser {
   memberId?: string
 
   /**
-   *  Regardless of who is logged in, the base role MUST always be assigned a value
+   * Regardless of who is logged in, the base role MUST always be assigned a value
    * - for account owners baseRole will be equal to role
    * - for members baseRole with be equal to accountOwner role
    */
   baseRole: EPremiumSubscribers
 
   /**
-   * auto generates how many peoplea are in a team everytime a member is created
-   * Checks for limits for premium users team users and guest users
+   * Maintains total number of team members a premium user has
+   *  - Allows us to limit number of team members a premium account
+   *   can have
    */
   totalTeamMembers: number
+
+  /**
+   * Exposes total number of projects a user have created
+   * - manly for capping subscribers,
+   *   i.e. Standard Subscribers have a maximum of
+   *   12 projects, while guest 3 projects
+   */
+  totalProjects: number
 }
