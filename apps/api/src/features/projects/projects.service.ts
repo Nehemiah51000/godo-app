@@ -154,7 +154,7 @@ export class ProjectsService {
           } else {
             //if the root project has no tasks but it is leafy update to normal
 
-            withTasks.projectTypeBehaviour = EProjectTypeBehavior.NORMAL
+            withTasks.projectTypeBehaviour = EProjectTypeBehavior.BRANCH
             await withTasks.save()
           }
         }
