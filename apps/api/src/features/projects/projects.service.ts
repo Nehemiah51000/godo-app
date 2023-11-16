@@ -1,10 +1,28 @@
-import { Injectable, Logger, LoggerService } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  LoggerService,
+  NotFoundException,
+} from '@nestjs/common'
 import { CreateProjectDto } from './dto/create-project.dto'
 import { UpdateProjectDto } from './dto/update-project.dto'
 import { ToggleProjectStatusDto } from './dto/toggle-project-status.dto'
 import { InjectModel } from '@nestjs/mongoose'
-import { Project } from './schema/project.schema'
-import { Model } from 'mongoose'
+import { Project, TProjectDoc } from './schema/project.schema'
+import { FilterQuery, MergeType, Model, PopulateOptions } from 'mongoose'
+import { IActiveUser } from 'src/iam/interfaces/i-active-user'
+import { EPremiumSubscribers } from 'src/iam/enums/e-roles.enum'
+import { UpdateUserDto } from 'src/iam/users/dto/update-user.dto'
+import { UsersService } from 'src/iam/users/users.service'
+import { FactoryUtils } from 'src/common/services/factory-utils'
+import { EProjectTypes } from './enums/e-project-types.enum'
+import { PaymentRequiredException } from 'src/common/exceptions/payment-required-exception'
+import { EProjectTypeBehavior } from './enums/e-project-type-behavior.enum'
+import { TTodoDoc } from '../todos/schema/todo.schema'
 
 @Injectable()
 export class ProjectsService {
@@ -16,32 +34,361 @@ export class ProjectsService {
   constructor(
     @InjectModel(Project.name)
     private readonly projectModel: Model<Project>,
+
+    private readonly userService: UsersService,
+
+    private readonly factoryUtils: FactoryUtils,
   ) {}
 
-  create(createProjectDto: CreateProjectDto) {
-    return 'This action adds a new Project'
+  async create(createProjectDto: CreateProjectDto, activeUser: IActiveUser) {
+    const totalProjects = activeUser.totalProjects
+
+    try {
+      // confirm is user is creating a new root project
+      const whoIs = this.factoryUtils.whoIs(activeUser)
+
+      if (createProjectDto?.endAt) {
+        const endAt = new Date(createProjectDto?.endAt).getTime()
+
+        const now = Date.now()
+
+        if (now > endAt) {
+          this.logger.warn(
+            `User is trying to create a projecct using a due date that is in the past`,
+          )
+
+          throw new BadRequestException(
+            `You can't create a project with a due date in the past`,
+          )
+        }
+      }
+
+      if (
+        (!createProjectDto?.projectType ||
+          createProjectDto?.projectType === EProjectTypes.ROOT) &&
+        (createProjectDto?.rootParentId || createProjectDto?.subParentId)
+      ) {
+        this.logger.warn(
+          `User ${whoIs} is trying to create a new root project but has also supplied a ${
+            createProjectDto?.rootParentId
+              ? 'root parent id'
+              : 'sub root parent id'
+          }`,
+        )
+
+        throw new BadRequestException(
+          `Looks like you are creating a new project? However your request includes dependencies to another project? Do you intend to create a sub-project?`,
+        )
+      }
+
+      // ensure  a sub-project has parent project id
+      if (
+        createProjectDto?.projectType === EProjectTypes.SUB_PROJECT &&
+        !createProjectDto?.rootParentId
+      ) {
+        this.logger.warn(
+          `User ${whoIs} is creating a sub project without it's id`,
+        )
+
+        throw new BadRequestException(`A sub-project requires it's parent id`)
+      }
+      // get user total projects & check if has reached max limit
+
+      const userSubscription = activeUser.baseRole
+
+      if (
+        userSubscription === EPremiumSubscribers.GUEST_USER ||
+        userSubscription === EPremiumSubscribers.STANDARD_USER
+      ) {
+        const guest = EPremiumSubscribers.GUEST_USER
+        const standard = EPremiumSubscribers.STANDARD_USER
+
+        const maxProjects = {
+          [guest]: this.MAX_GUEST_SUBSCRIBER_PROJECTS,
+          [standard]: this.MAX_STANDARD_SUBSCRIBER_PROJECTS,
+        }
+
+        const newTotalPr = totalProjects + 1
+
+        if (newTotalPr > maxProjects[userSubscription]) {
+          this.logger.warn(
+            `User ${whoIs} is trying to add more projects beyond the max limit`,
+          )
+
+          throw new PaymentRequiredException(
+            'Please upgrade your account to enjoy more projects',
+          )
+        }
+      }
+      // update user with totalProjects - we can use transactions
+      await this.updateTotalProjects(
+        totalProjects,
+        activeUser,
+        createProjectDto,
+      )
+
+      let message: string
+      let foundProject: MergeType<
+        TProjectDoc,
+        {
+          createdAt: string
+          updatedAt: string
+        }
+      >
+
+      //find parent project user is trying to create
+      if (createProjectDto?.rootParentId) {
+        const foundProject = await this.projectModel.findById(
+          createProjectDto.rootParentId,
+        )
+
+        if (
+          foundProject &&
+          foundProject.projectTypeBehaviour === EProjectTypeBehavior.LEAFY
+        ) {
+          const withTasks = await foundProject.populate<{ tasks: TTodoDoc }>(
+            'tasks',
+          )
+          if (withTasks?.tasks) {
+            message = `You can't add a sub-project to a root project with tasks. Please promote all current tasks to sub-projects to be able to add a sub-project.`
+          } else {
+            //if the root project has no tasks but it is leafy update to normal
+
+            withTasks.projectTypeBehaviour = EProjectTypeBehavior.NORMAL
+            await withTasks.save()
+          }
+        }
+      }
+
+      // can now create a new project
+      let newProject: TProjectDoc
+
+      if (!foundProject) {
+        newProject = await this.projectModel.create(createProjectDto)
+      }
+
+      //reusing the handle
+      if (foundProject) {
+        Object.entries(createProjectDto).forEach(([key, value]) => {
+          foundProject[key] = value
+        })
+
+        //clean: remove unnecessary fields
+        foundProject.id = undefined
+        foundProject._id = undefined
+        foundProject.createdAt = undefined
+        foundProject.updatedAt = undefined
+        foundProject.__v = undefined
+
+        foundProject.isNew = true
+        newProject = await foundProject.save()
+      }
+      //always populate
+      newProject = await newProject.populate(this.populateConfigs())
+
+      return {
+        message: message || 'A new project was successfully created',
+        data: newProject,
+      }
+    } catch (error) {
+      this.logger.warn(error.message)
+      this.logger.error(error)
+
+      // handler bad request
+      if (error instanceof BadRequestException) {
+        throw new BadRequestException(error.message)
+      }
+
+      // handle payment exceptions request
+      if (error instanceof PaymentRequiredException) {
+        throw new PaymentRequiredException(error.message)
+      }
+
+      // handle not found exceptions request
+      if (error instanceof NotFoundException) {
+        throw new NotFoundException(`Failed to create a new project`)
+      }
+
+      // handle forbidden exceptions request
+      if (error instanceof ForbiddenException) {
+        throw new ForbiddenException(`Failed to create a new project`)
+      }
+
+      // handle validations
+      if (error instanceof Error && error.name === 'Validations') {
+        // rollback updating total projects
+        await this.updateTotalProjects(
+          totalProjects,
+          activeUser,
+          createProjectDto,
+          false,
+        )
+
+        throw new BadRequestException(error.message)
+      }
+
+      // handle conflict
+      if (error.code === 11000) {
+        // rollback updating total projects
+        await this.updateTotalProjects(
+          totalProjects,
+          activeUser,
+          createProjectDto,
+          false,
+        )
+
+        const message = this.factoryUtils.autoGenerateDuplicateMessage(error)
+
+        throw new ConflictException(message || 'Failed to create a new project')
+      }
+
+      // handle default - unknown error
+      throw new InternalServerErrorException(
+        'Server failed to process your request, please try again later',
+      )
+    }
   }
 
-  findAll() {
-    return `This action returns all Projects`
+  async findAll(
+    filters: FilterQuery<Project>,
+    activeUser: IActiveUser,
+    canPopIds: boolean = true,
+  ) {
+    const projects = await this.projectModel
+      .find({
+        userId: activeUser.sub,
+        ...filters,
+      })
+      .sort('-createdAt')
+      .populate(this.populateConfigs(canPopIds))
+
+    return {
+      data: projects,
+    }
   }
 
-  findOne(ProjectId: string) {
-    return `This action returns a #${ProjectId} Project`
+  async findOne(projectId: string, activeUser: IActiveUser) {
+    const whoIs = this.factoryUtils.whoIs(activeUser)
+
+    //find one & all its direct children
+    const projects = await this.findAll(
+      {
+        $or: [
+          { _id: projectId },
+          { rootParentId: projectId },
+          { subParentId: projectId },
+        ],
+      },
+      activeUser,
+      false,
+    )
+
+    if (projects.data.length === 0) {
+      this.logger.warn(
+        `User ( ${whoIs}) is trying to find a project that is not available in their collection`,
+      )
+      throw new NotFoundException(`Could not find the requested project`)
+    }
+    return projects
   }
 
   update(
-    ProjectId: string,
+    projectId: string,
     updateProjectDto: Partial<UpdateProjectDto | ToggleProjectStatusDto>,
+    activeUser: IActiveUser,
   ) {
-    return `This action updates a #${ProjectId} Project`
+    return `This action updates a #${projectId} Project`
   }
 
-  toggleStatus(ProjectId: string, toggleStatusDto: ToggleProjectStatusDto) {
+  toggleStatus(
+    projectId: string,
+    toggleStatusDto: ToggleProjectStatusDto,
+    activeUser: IActiveUser,
+  ) {
     return `toggleStatus`
   }
 
-  remove(ProjectId: string) {
-    return `This action removes a #${ProjectId} Project`
+  remove(projectId: string, activeUser: IActiveUser) {
+    return `This action removes a #${projectId} Project`
+  }
+
+  /**
+   * ---------------------------------------
+   *
+   *                 HELPERS
+   *
+   * ---------------------------------------
+   *
+   */
+
+  private async findProjectHelper(projectId: string, activeUser: IActiveUser) {
+    let foundProject = await this.projectModel.findOne({
+      _id: projectId,
+      userId: activeUser.sub,
+    })
+
+    const whoIs = this.factoryUtils.whoIs(activeUser)
+
+    if (!foundProject) {
+      this.logger.warn(
+        `user (${whoIs}) is trying to find a project that is not avaibalbe in their collection`,
+      )
+
+      throw new NotFoundException(
+        `could not find the requested project in your collection`,
+      )
+    }
+
+    foundProject = await foundProject.populate(this.populateConfigs())
+
+    return foundProject
+  }
+
+  /**
+   * Updates user total projects
+   * - Can also be used to rollback updates if create error occurs
+   *
+   * @param totalProjects
+   * @param activeUser
+   * @param add
+   */
+  private async updateTotalProjects(
+    totalProjects: number,
+    activeUser: IActiveUser,
+    dto: CreateProjectDto,
+    add: boolean = true,
+  ) {
+    if (dto.projectType !== EProjectTypes.ROOT) return
+
+    const userUpdateDto = {
+      totalProjects: totalProjects + (add ? 1 : 0),
+    } as UpdateUserDto
+
+    await this.userService.update(
+      activeUser.sub.toString(),
+      userUpdateDto,
+      activeUser,
+    )
+  }
+
+  /**
+   * Pre configure populate fields
+   * @returns
+   */
+  private populateConfigs(popParentIds: boolean = false): PopulateOptions[] {
+    return [
+      ...(popParentIds
+        ? [
+            { path: 'rootParentId', select: 'id title' },
+            { path: 'subParentId', select: 'id title' },
+          ]
+        : []),
+      { path: 'dependsOn', select: 'id title' },
+      { path: 'tasks' },
+      { path: 'tasks.parentId', strictPopulate: false },
+      { path: 'tasks.subParentId', strictPopulate: false },
+      { path: 'tasks.iconId', strictPopulate: false },
+      { path: 'tasks.userId', strictPopulate: false },
+    ]
   }
 }
