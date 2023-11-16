@@ -55,7 +55,7 @@ export class ProjectResponseBaseDto extends DefaultResponseDto {
   dependsOn?: SlimProjectResponseDto
 }
 
-export class ProjectResponseDto extends DefaultResponseDto {
+export class ProjectResponseDto extends ProjectResponseBaseDto {
   @Expose()
   @Type(() => SlimProjectResponseDto)
   rootParentId?: SlimProjectResponseDto
@@ -63,4 +63,14 @@ export class ProjectResponseDto extends DefaultResponseDto {
   @Expose()
   @Type(() => SlimProjectResponseDto)
   subParentId?: SlimProjectResponseDto
+}
+
+export class ProjectResponseIdUnserializedDto extends ProjectResponseBaseDto {
+  @Expose()
+  @Transform(({ value }) => value?.toString())
+  rootParentId?: string
+
+  @Expose()
+  @Transform(({ value }) => value?.toString())
+  subParentId?: string
 }
