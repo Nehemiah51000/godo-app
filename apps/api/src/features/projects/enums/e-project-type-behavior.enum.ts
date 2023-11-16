@@ -4,6 +4,6 @@ export enum EProjectTypeBehavior {
   //However a user can create a new root project with leafy characteristics by choosing project type behviour as leafy.
   //Therefore, the user can add tasks directly to the root project
 
-  NORMAL = 'normal',
+  BRANCH = 'branch',
   LEAFY = 'leafy',
 }
