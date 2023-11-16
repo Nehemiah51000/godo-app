@@ -3,6 +3,9 @@ import { HydratedDocument, SchemaTypes } from 'mongoose'
 import { Icon } from 'src/features/icons/schema/icon.schema'
 import { Todo } from 'src/features/todos/schema/todo.schema'
 import { EProjectStages } from '../enums/e-projects-stages.enum'
+import { EProjectTypes } from '../enums/e-project-types.enum'
+import { EProjectTypeBehavior } from '../enums/e-project-type-behavior.enum'
+import { User } from 'src/iam/users/schema/user.schema'
 
 @Schema({
   toJSON: { virtuals: true },
@@ -11,7 +14,7 @@ import { EProjectStages } from '../enums/e-projects-stages.enum'
 })
 export class Project {
   @Prop({
-    index: 'text',
+    unique: true,
   })
   title: string
 
@@ -28,6 +31,12 @@ export class Project {
     ref: 'Icon',
   })
   iconsId?: Icon
+
+  @Prop({
+    type: SchemaTypes.ObjectId,
+    ref: 'User',
+  })
+  userId?: User
 
   @Prop({
     default: true,
@@ -52,19 +61,43 @@ export class Project {
   progressStage: EProjectStages | string
 
   @Prop({
-    schema: SchemaTypes.ObjectId,
+    type: String,
+    enum: {
+      values: [...Object.values(EProjectTypes)],
+      message: `Received {VALUE}, while expects project to be ${Object.values(
+        EProjectTypes,
+      ).join(' or ')}`,
+    },
+    default: EProjectTypes.ROOT,
+  })
+  projectType: EProjectTypes
+
+  @Prop({
+    type: String,
+    enum: {
+      values: [...Object.values(EProjectTypeBehavior)],
+      message: `Received {VALUE}, while expects project to be ${Object.values(
+        EProjectTypeBehavior,
+      ).join(' or ')}`,
+    },
+    default: EProjectTypeBehavior.NORMAL,
+  })
+  projectTypeBehaviour: EProjectTypeBehavior
+
+  @Prop({
+    type: SchemaTypes.ObjectId,
     ref: 'Project',
   })
   rootParentId?: Project
 
   @Prop({
-    schema: SchemaTypes.ObjectId,
+    type: SchemaTypes.ObjectId,
     ref: 'Project',
   })
   dependsOn?: Project
 
   @Prop({
-    schema: SchemaTypes.ObjectId,
+    type: SchemaTypes.ObjectId,
     ref: 'Project',
   })
   subParentId?: Project
@@ -79,7 +112,7 @@ export class Project {
 export const ProjectSchema = SchemaFactory.createForClass(Project)
 export type TProjectDoc = HydratedDocument<Project>
 
-ProjectSchema.virtual('todos', {
+ProjectSchema.virtual('tasks', {
   foreignField: 'projectId',
   localField: '_id',
   ref: Todo,
