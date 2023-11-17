@@ -4,6 +4,7 @@ import { Project } from 'src/features/projects/schema/project.schema'
 import { Icon } from 'src/features/icons/schema/icon.schema'
 import { User } from 'src/iam/users/schema/user.schema'
 import { EProjectStages } from 'src/features/projects/enums/e-projects-stages.enum'
+import { SubTodo } from 'src/features/sub-todos/schema/sub-todo.schema'
 
 @Schema({
   toJSON: { virtuals: true },
@@ -68,3 +69,10 @@ export type TTodoDoc = HydratedDocument<Todo>
 // projectId?: Project
 // iconId?: Icon
 // isEnabled: boolean
+
+// relationship sub-todos of a give todo
+TodoSchema.virtual('parentTodos', {
+  localField: '_id',
+  foreignField: 'subTodo',
+  ref: SubTodo,
+})
