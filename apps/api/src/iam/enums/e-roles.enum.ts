@@ -5,7 +5,6 @@ import {
 
 export enum ERoles {
   //accounts owners
-
   TEAM_USER = 'team_user',
   PREMIUM_USER = 'premium_user',
   GUEST_USER = 'guest_user',
@@ -38,6 +37,7 @@ export enum EGeneralUsers {
 export enum EPremiumSubscribers {
   TEAM_USER = ERoles.TEAM_USER,
   PREMIUM_USER = ERoles.PREMIUM_USER,
+  STANDARD_USER = ERoles.STANDARD_USER,
   GUEST_USER = ERoles.GUEST_USER,
   ADMIN = ERoles.ADMIN,
   WHITELISTED = ERoles.WHITELISTED,
