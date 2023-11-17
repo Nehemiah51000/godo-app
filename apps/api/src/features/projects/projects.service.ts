@@ -23,6 +23,7 @@ import { EProjectTypes } from './enums/e-project-types.enum'
 import { PaymentRequiredException } from 'src/common/exceptions/payment-required-exception'
 import { EProjectTypeBehavior } from './enums/e-project-type-behavior.enum'
 import { TTodoDoc } from '../todos/schema/todo.schema'
+import { User } from 'src/iam/users/schema/user.schema'
 
 @Injectable()
 export class ProjectsService {
@@ -138,24 +139,39 @@ export class ProjectsService {
 
       //find parent project user is trying to create
       if (createProjectDto?.subParentId || createProjectDto?.rootParentId) {
-        const foundProject = await this.projectModel.findById(
-          createProjectDto.rootParentId,
+        foundProject = await this.projectModel.findById(
+          createProjectDto?.subParentId || createProjectDto?.rootParentId,
         )
 
-        if (
+        const isRootLeafy =
           foundProject &&
-          foundProject.projectTypeBehaviour === EProjectTypeBehavior.LEAFY
-        ) {
+          foundProject.projectTypeBehaviour === EProjectTypeBehavior.LEAFY &&
+          foundProject.projectType === EProjectTypes.ROOT
+
+        const isSubProjectLeafy =
+          foundProject &&
+          foundProject.projectTypeBehaviour === EProjectTypeBehavior.LEAFY &&
+          foundProject.projectType === EProjectTypes.SUB_PROJECT
+
+        if (isSubProjectLeafy || isRootLeafy) {
           const withTasks = await foundProject.populate<{ tasks: TTodoDoc }>(
             'tasks',
           )
-          if (withTasks?.tasks) {
-            message = `You can't add a sub-project to a root project with tasks. Please promote all current tasks to sub-projects to be able to add a sub-project.`
-          } else {
-            //if the root project has no tasks but it is leafy update to normal
 
-            withTasks.projectTypeBehaviour = EProjectTypeBehavior.BRANCH
-            await withTasks.save()
+          const typeBh = isRootLeafy ? 'root project' : 'sub-project'
+
+          //if no tasks, update leafy to branch- lock the leafy project
+          withTasks.projectTypeBehaviour = EProjectTypeBehavior.BRANCH
+          await withTasks.save()
+
+          if (withTasks?.tasks) {
+            message = `The ${typeBh} you are trying to associate this sub-project has tasks as its direct children. Please, move all these tasks into their associated relevant sub-projects`
+          } else {
+            this.logger.log(
+              `A leafy ${typeBh} was automatically converted to a branch project`,
+            )
+
+            message = `You've successfully created a sub-project based on a leafy ${typeBh}. Please note, you cannot add more tasks directly to this project`
           }
         }
       }
@@ -164,7 +180,10 @@ export class ProjectsService {
       let newProject: TProjectDoc
 
       if (!foundProject) {
-        newProject = await this.projectModel.create(createProjectDto)
+        newProject = await this.projectModel.create({
+          ...createProjectDto,
+          userId: activeUser.sub as unkown as User,
+        })
       }
 
       //reusing the handle
