@@ -182,7 +182,7 @@ export class ProjectsService {
       if (!foundProject) {
         newProject = await this.projectModel.create({
           ...createProjectDto,
-          userId: activeUser.sub as unkown as User,
+          userId: activeUser.sub as unknown as User,
         })
       }
 
