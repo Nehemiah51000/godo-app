@@ -137,7 +137,7 @@ export class ProjectsService {
       >
 
       //find parent project user is trying to create
-      if (createProjectDto?.rootParentId) {
+      if (createProjectDto?.subParentId || createProjectDto?.rootParentId) {
         const foundProject = await this.projectModel.findById(
           createProjectDto.rootParentId,
         )
