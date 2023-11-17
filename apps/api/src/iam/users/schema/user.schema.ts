@@ -8,21 +8,21 @@ import mongoose from 'mongoose'
 })
 export class User {
   @Prop({
-    minlength: [5, 'User name cannot be less than 5 characters'],
+    maxLength: [50, 'Username must not exceed 50 characters'],
     trim: true,
   })
   username: string
 
   @Prop({
-    maxlength: [100, 'Email cannot be more than 50 characters'],
+    maxLength: [100, 'Email must not exceed 100 characters'],
     trim: true,
     unique: true,
   })
   email: string
 
   @Prop({
-    maxlength: [255, 'Password cannot be more than 255 characters'],
-    minlength: [6, 'Password cannot be less than 6 characters'],
+    maxLength: [255, 'Password must be less than 255 characters'],
+    minLength: [6, 'Password should be greater than 6 character'],
     trim: true,
   })
   password: string
@@ -33,13 +33,13 @@ export class User {
   //     validator: function (value: string) {
   //       return this.password === value
   //     },
-  //     message: 'Passwords do not match',
+  //     message: 'Password do not match',
   //   },
   // })
-  // passwordConfirm: string
+  // passwordConfirm?: string
 
   @Prop({
-    maxlength: [1000, 'Bio cannot be more than 1000 characters'],
+    maxLength: [1000, 'Bio must not exceed 1000 characters'],
     trim: true,
   })
   bio?: string
@@ -57,7 +57,7 @@ export class User {
   @Prop({
     default: 'default.jpg',
   })
-  profileImg: string
+  profileImg?: string
 
   @Prop()
   passwordResetToken?: Date
@@ -66,34 +66,30 @@ export class User {
   passwordResetExpiresAt?: Date
 
   @Prop({
-    default: '0',
+    default: 0,
   })
   totalTeamMembers?: number
+
+  @Prop({
+    default: 0,
+  })
+  totalProjects?: number
 }
+
 export const UserSchema = SchemaFactory.createForClass(User)
 
 export type TUserDoc = mongoose.HydratedDocument<User>
-/*
-  username: string
-  password: string
-  bio: string
-  isActive: boolean
-  isConfirmed: boolean
-  profileImg: string
-  passwordResetToken: Date
-  passwordResetExpiresAt: Date
- */
 
-//Populate virtual fields
-//Accesses
+// populate virtual fields
+// Accesses
 UserSchema.virtual('accesses', {
   ref: 'Access',
   localField: '_id',
   foreignField: 'accountOwner',
 })
 
-//populate virtual fields
-//members
+// populate virtual fields
+// Members
 UserSchema.virtual('team', {
   ref: 'Team',
   localField: '_id',
