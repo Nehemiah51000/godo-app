@@ -4,7 +4,9 @@ import { TodosController } from './todos.controller'
 import { MongooseModule } from '@nestjs/mongoose'
 import { Todo, TodoSchema } from './schema/todo.schema'
 import { IconsModule } from '../icons/icons.module'
-import { projectsModule } from '../projects/projects.module'
+import { SubTodosModule } from '../sub-todos/sub-todos.module'
+import { ProjectsModule } from '../projects/projects.module'
+import { FactoryUtils } from 'src/common/services/factory-utils'
 
 @Module({
   imports: [
@@ -18,11 +20,11 @@ import { projectsModule } from '../projects/projects.module'
         },
       },
     ]),
+    SubTodosModule,
     IconsModule,
-    projectsModule,
+    ProjectsModule,
   ],
   controllers: [TodosController],
-  providers: [TodosService],
-  exports: [],
+  providers: [TodosService, FactoryUtils],
 })
 export class TodosModule {}
